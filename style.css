@@ -336,6 +336,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
 /* ===== SECTION HEADINGS ===== */
 .section-heading { font-size: 0.92rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
 
+/* ===== AUTH ===== */
+.auth-user-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 10px 4px 4px;
+  cursor: pointer; font-size: 0.8rem; font-weight: 500;
+  color: var(--text); transition: all var(--transition); font-family: inherit;
+}
+.auth-user-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.auth-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.auth-avatar-fallback {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+}
+
 /* ===== UTILS ===== */
 .mt-1 { margin-top: 0.6rem; }
 .mt-2 { margin-top: 1.25rem; }
