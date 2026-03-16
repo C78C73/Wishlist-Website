@@ -23,11 +23,12 @@ const S = {
   editingItemId: null
 };
 let authResolved = false;
+let pendingNavAfterAuth = null;
 
 // =========================================================
 // THEME
 // =========================================================
-const savedTheme = localStorage.getItem('wl-theme') || 'light';
+const savedTheme = localStorage.getItem('wl-theme') || 'dark';
 applyTheme(savedTheme);
 
 function applyTheme(t) {
@@ -62,6 +63,13 @@ function initFirebase() {
       S.user = user;
       authResolved = true;
       updateAuthUI();
+      // If a navigation was pending sign-in, complete it now
+      if (user && pendingNavAfterAuth) {
+        const dest = pendingNavAfterAuth;
+        pendingNavAfterAuth = null;
+        navigateTo(dest);
+        return;
+      }
       // If auth resolved with no user on a protected page, bounce home
       if (!user) {
         const h = location.hash.replace('#', '') || '/';
@@ -255,7 +263,15 @@ function goToList() {
 }
 window.goToList = goToList;
 
-function goCreate() { navigateTo('create'); }
+function goCreate() {
+  if (authResolved && !S.user) {
+    pendingNavAfterAuth = 'create';
+    toast('Sign in first to create a list', 'info');
+    handleAuthClick();
+    return;
+  }
+  navigateTo('create');
+}
 window.goCreate = goCreate;
 
 // =========================================================
@@ -403,7 +419,10 @@ function buildItemCard(item, idx, isOwner) {
       `<button class="btn btn-secondary btn-sm" onclick="openEditItemModal('${item.id}')">Edit</button>` +
       `<button class="btn btn-danger btn-sm" onclick="askDeleteItem('${item.id}')">Remove</button>`;
   } else if (item.bought) {
-    actions = '<span class="bought-badge">✓ Bought</span>';
+    const isYours = S.user && item.boughtByUid === S.user.uid;
+    actions = isYours
+      ? '<span class="bought-badge yours-badge">✓ You\'re buying this</span>'
+      : '<span class="bought-badge">✓ Bought</span>';
   } else {
     actions =
       (item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">🔗 View</a>` : '') +
@@ -711,7 +730,7 @@ async function doMarkBought() {
   btn.innerHTML = '<span class="spinner"></span>';
   try {
     const newItems = S.listData.items.map(it =>
-      it.id === S.pendingBuyItemId ? { ...it, bought: true, boughtAt: Date.now() } : it
+      it.id === S.pendingBuyItemId ? { ...it, bought: true, boughtAt: Date.now(), boughtByUid: S.user ? S.user.uid : null } : it
     );
     await updateDoc(doc(S.db, 'lists', S.listId), { items: newItems });
     S.listData.items = newItems;
