@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wishlist — Gift Ideas Made Easy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== NAVBAR ===== -->
+  <nav class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand" onclick="navigateTo('home')">
+        <div class="brand-icon">🎁</div>
+        Wishlist
+      </div>
+      <div class="nav-actions">
+        <button class="icon-btn" onclick="navigateTo('mylists')" title="My Lists" aria-label="My Lists">📋</button>
+        <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== PAGES ===== -->
+  <div id="app">
+
+    <!-- HOME -->
+    <div id="page-home" class="page">
+      <div class="container">
+        <section class="hero">
+          <div class="hero-badge">🎉 No more duplicate gifts</div>
+          <h1>Your wishlist,<br>perfectly shared</h1>
+          <p>Create wishlists for any occasion and share them. Buyers can mark items as bought so nothing gets purchased twice — and your surprises stay safe.</p>
+          <div class="hero-portals">
+            <div class="portal-card" onclick="showViewEntry()">
+              <span class="portal-icon">🛍️</span>
+              <h3>I'm Shopping</h3>
+              <p>View a wishlist and mark items as bought</p>
+            </div>
+            <div class="portal-card" onclick="goCreate()">
+              <span class="portal-icon">✨</span>
+              <h3>Create a List</h3>
+              <p>Build your wishlist for birthdays, christmas &amp; more</p>
+            </div>
+          </div>
+          <div class="view-entry" id="view-entry">
+            <p style="font-size:0.84rem; font-weight:600; color:var(--text); margin-bottom:8px;">Enter the wishlist code you were given:</p>
+            <div class="view-entry-row">
+              <input type="text" id="list-code-input" placeholder="e.g. ab3f9x2k" maxlength="24" autocomplete="off" spellcheck="false" />
+              <button class="btn btn-primary" onclick="goToList()">View List →</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- SETUP -->
+    <div id="page-setup" class="page">
+      <div class="container-sm" style="padding-top:2.5rem; padding-bottom:3rem;">
+        <div style="text-align:center; padding-bottom:1.5rem;">
+          <div style="font-size:3rem; margin-bottom:0.75rem;">⚙️</div>
+          <h2 style="margin-bottom:0.5rem;">One-time Firebase Setup</h2>
+          <p>Wishlist needs a free Firebase project to store and share data between devices. Takes about 5 minutes.</p>
+        </div>
+        <div class="setup-step">
+          <h3>Step 1 — Create a Firebase project</h3>
+          <p>Go to <strong>console.firebase.google.com</strong> → Add project → Enter a name → Continue (you can disable Google Analytics)</p>
+        </div>
+        <div class="setup-step">
+          <h3>Step 2 — Add a Web App</h3>
+          <p>In your project dashboard: Click the <strong>&lt;/&gt;</strong> (Web) icon → Give it a nickname → Register app → Copy the <code style="display:inline; padding:1px 5px; font-size:0.8rem; border-radius:4px; background:var(--surface);">firebaseConfig</code> object</p>
+        </div>
+        <div class="setup-step">
+          <h3>Step 3 — Enable Firestore</h3>
+          <p>In the left sidebar: Build → Firestore Database → Create database → <strong>Start in test mode</strong> → Choose a region → Enable</p>
+        </div>
+        <div class="setup-step">
+          <h3>Step 4 — Paste your config here</h3>
+          <p>The config looks like:</p>
+          <code>{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-project-id",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456:web:abc123"
+}</code>
+        </div>
+        <div class="form-group" style="margin-top:1.25rem;">
+          <label>Paste Firebase Config JSON</label>
+          <textarea id="firebase-config-input" rows="9" placeholder='Paste your Firebase config JSON here...'></textarea>
+        </div>
+        <button class="btn btn-primary btn-lg" style="width:100%;" onclick="saveFirebaseConfig()">Save &amp; Start Using Wishlist →</button>
+        <p style="text-align:center; font-size:0.78rem; margin-top:0.9rem; color:var(--text-muted);">Your config is stored in your browser only and is never sent anywhere else.</p>
+      </div>
+    </div>
+
+    <!-- CREATE LIST -->
+    <div id="page-create" class="page">
+      <div class="container-sm" style="padding-top:0.5rem; padding-bottom:3rem;">
+        <div class="page-header">
+          <div class="breadcrumb">
+            <span class="crumb" onclick="navigateTo('home')">Home</span>
+            <span>›</span>
+            <span>Create List</span>
+          </div>
+          <h2>Create a new wishlist</h2>
+          <p style="margin-top:4px;">Fill in the details below, then start adding items</p>
+        </div>
+        <div class="card" style="margin-bottom:1.5rem;">
+          <h3 style="margin-bottom:1.1rem;">📋 List Details</h3>
+          <div class="form-group">
+            <label>Your Name *</label>
+            <input type="text" id="create-owner" placeholder="e.g. Sarah" autocomplete="given-name" />
+          </div>
+          <div class="form-row">
+            <div class="form-group mb-0">
+              <label>List Name *</label>
+              <input type="text" id="create-name" placeholder="e.g. Birthday 2026" />
+            </div>
+            <div class="form-group mb-0">
+              <label>Occasion</label>
+              <select id="create-occasion">
+                <option value="birthday">🎂 Birthday</option>
+                <option value="christmas">🎄 Christmas</option>
+                <option value="wedding">💍 Wedding</option>
+                <option value="baby-shower">👶 Baby Shower</option>
+                <option value="graduation">🎓 Graduation</option>
+                <option value="housewarming">🏠 Housewarming</option>
+                <option value="anniversary">💕 Anniversary</option>
+                <option value="other">🎁 Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;">
+          <button class="btn btn-primary btn-lg" id="create-btn" onclick="createList()">Create List &amp; Add Items →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MANAGE (OWNER) -->
+    <div id="page-manage" class="page">
+      <div class="container">
+        <div class="page-header">
+          <div class="breadcrumb">
+            <span class="crumb" onclick="navigateTo('home')">Home</span>
+            <span>›</span>
+            <span class="crumb" onclick="navigateTo('mylists')">My Lists</span>
+            <span>›</span>
+            <span id="manage-breadcrumb">List</span>
+          </div>
+          <div class="page-header-row">
+            <div>
+              <h2 id="manage-title">My Wishlist</h2>
+              <span class="occasion-tag" id="manage-occasion"></span>
+            </div>
+            <div class="page-header-actions">
+              <button class="btn btn-secondary" onclick="openShareModal()">🔗 Share</button>
+              <button class="btn btn-primary" onclick="openAddItemModal()">+ Add Item</button>
+            </div>
+          </div>
+        </div>
+        <div id="manage-items"></div>
+        <button class="fab" onclick="openAddItemModal()" aria-label="Add item">+</button>
+      </div>
+    </div>
+
+    <!-- BUYER VIEW -->
+    <div id="page-buyer" class="page">
+      <div class="container">
+        <div class="page-header">
+          <div class="breadcrumb">
+            <span class="crumb" onclick="navigateTo('home')">Home</span>
+            <span>›</span>
+            <span>Wishlist</span>
+          </div>
+          <div class="page-header-row">
+            <div>
+              <h2 id="buyer-title">Wishlist</h2>
+              <span class="occasion-tag" id="buyer-occasion"></span>
+              <p id="buyer-owner" style="margin-top:5px; font-size:0.88rem;"></p>
+            </div>
+          </div>
+        </div>
+        <div class="info-bar">
+          <span class="info-bar-icon">ℹ️</span>
+          <span>Bought items are <strong>hidden from the list owner</strong> to keep surprises safe! Once you claim an item, other shoppers will see it's taken.</span>
+        </div>
+        <div class="progress-wrap" id="buyer-progress" style="display:none;">
+          <div class="progress-labels">
+            <span id="progress-label">0 of 0 items bought</span>
+            <span id="progress-pct">0%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        </div>
+        <div id="buyer-items"></div>
+      </div>
+    </div>
+
+    <!-- MY LISTS -->
+    <div id="page-mylists" class="page">
+      <div class="container">
+        <div class="page-header">
+          <h2>My Wishlists</h2>
+          <p style="margin-top:4px;">Lists you've created on this device</p>
+        </div>
+        <div style="margin-bottom:1.4rem;">
+          <button class="btn btn-primary" onclick="goCreate()">+ Create New List</button>
+        </div>
+        <div id="mylists-content"></div>
+      </div>
+    </div>
+
+  </div><!-- #app -->
+
+  <!-- ===== MODALS ===== -->
+
+  <!-- Add Item -->
+  <div class="overlay" id="modal-add-item">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Add Item</h2>
+        <button class="icon-btn" onclick="closeModal('modal-add-item')">✕</button>
+      </div>
+      <div class="url-fetch-box">
+        <p style="font-size:0.79rem; font-weight:600; margin-bottom:8px;">🔗 Auto-fill from a product link (optional)</p>
+        <div class="url-fetch-row">
+          <input type="url" id="item-url" placeholder="Paste a product URL to auto-fill…" autocomplete="off" />
+          <button class="btn btn-secondary btn-sm" id="fetch-btn" onclick="fetchFromUrl()">Fetch</button>
+        </div>
+        <div id="fetch-preview" class="fetch-preview hidden">
+          <img id="fp-img" src="" alt="" />
+          <div class="fp-info">
+            <h4 id="fp-title"></h4>
+            <p id="fp-desc"></p>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Item Name *</label>
+        <input type="text" id="item-name" placeholder="What would you like?" />
+      </div>
+      <div class="form-row">
+        <div class="form-group mb-0">
+          <label>Price (optional)</label>
+          <input type="text" id="item-price" placeholder="e.g. £25 or $30" />
+        </div>
+        <div class="form-group mb-0">
+          <label>Image URL (optional)</label>
+          <input type="url" id="item-image" placeholder="https://…" />
+        </div>
+      </div>
+      <div class="form-group mt-1">
+        <label>Notes (optional)</label>
+        <textarea id="item-notes" placeholder="Size, colour, specific version, link notes…"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-add-item')">Cancel</button>
+        <button class="btn btn-primary" id="add-item-submit" onclick="submitAddItem()">Add Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share -->
+  <div class="overlay" id="modal-share">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>🔗 Share Your List</h2>
+        <button class="icon-btn" onclick="closeModal('modal-share')">✕</button>
+      </div>
+      <p>Send this link to friends and family so they can view your wishlist and mark items as bought.</p>
+      <div class="share-row">
+        <input type="text" id="share-link" readonly />
+        <button class="btn btn-primary btn-sm" onclick="copyShareLink()">Copy</button>
+      </div>
+      <p style="font-size:0.79rem; margin-bottom:0;">Your list code: <strong id="share-code" style="color:var(--primary); font-family:monospace;"></strong></p>
+      <hr />
+      <p style="font-size:0.845rem; color:var(--text);">
+        Items marked as <strong>Bought</strong> by shoppers are <strong>hidden from you</strong> when you view this list through your management link — your surprises stay safe ✨
+      </p>
+    </div>
+  </div>
+
+  <!-- Confirm Bought -->
+  <div class="overlay" id="modal-confirm-bought">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-head">
+        <h2>🛍️ You're buying this?</h2>
+        <button class="icon-btn" onclick="closeModal('modal-confirm-bought')">✕</button>
+      </div>
+      <p>You're claiming <strong id="confirm-item-name"></strong>. Other shoppers will see it's taken, but the list owner won't know until they receive it.</p>
+      <p style="margin-top:8px; font-size:0.83rem;">This can't easily be undone — are you sure?</p>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-confirm-bought')">Cancel</button>
+        <button class="btn btn-primary" id="confirm-bought-btn">Yes, I'll buy this!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Item -->
+  <div class="overlay" id="modal-delete-item">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-head">
+        <h2>Remove Item?</h2>
+        <button class="icon-btn" onclick="closeModal('modal-delete-item')">✕</button>
+      </div>
+      <p>Remove <strong id="delete-item-name"></strong> from your list? This can't be undone.</p>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-delete-item')">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOASTS ===== -->
+  <div class="toast-wrap" id="toast-wrap"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
