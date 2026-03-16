@@ -355,6 +355,35 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
   font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
 }
 
+/* ===== SIGN IN PAGE ===== */
+.signin-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 2.5rem 2rem; box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border); text-align: center;
+  max-width: 420px; margin: 0 auto;
+}
+.signin-logo { font-size: 3rem; margin-bottom: 0.9rem; }
+.signin-card h2 { margin-bottom: 0.6rem; }
+.signin-card > p { max-width: 300px; margin: 0 auto; }
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 0.75rem 1.5rem; margin: 1.5rem 0;
+  background: #fff; color: #3c4043;
+  border: 1.5px solid #dadce0; border-radius: var(--radius-sm);
+  font-size: 0.925rem; font-weight: 500; font-family: inherit; cursor: pointer;
+  transition: all var(--transition); box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.btn-google:hover { background: #f8f9fa; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-color: #c0c3c7; }
+.btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+[data-theme="dark"] .btn-google { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+[data-theme="dark"] .btn-google:hover { background: var(--surface); }
+.signin-perks {
+  text-align: left; margin-top: 1.5rem; display: flex; flex-direction: column;
+  gap: 10px; border-top: 1px solid var(--border); padding-top: 1.5rem;
+}
+.signin-perk { display: flex; align-items: center; gap: 10px; font-size: 0.855rem; color: var(--text-muted); }
+.signin-perk-icon { font-size: 1rem; flex-shrink: 0; }
+
 /* ===== UTILS ===== */
 .mt-1 { margin-top: 0.6rem; }
 .mt-2 { margin-top: 1.25rem; }

@@ -63,20 +63,21 @@ function initFirebase() {
       S.user = user;
       authResolved = true;
       updateAuthUI();
-      // If a navigation was pending sign-in, complete it now
-      if (user && pendingNavAfterAuth) {
-        const dest = pendingNavAfterAuth;
-        pendingNavAfterAuth = null;
-        navigateTo(dest);
-        return;
-      }
-      // If auth resolved with no user on a protected page, bounce home
-      if (!user) {
-        const h = location.hash.replace('#', '') || '/';
-        if (h === '/create' || h === '/mylists') {
-          navigateTo('home');
-          toast('Sign in to access that page', 'info');
+      if (user) {
+        // Complete a pending post-auth navigation
+        if (pendingNavAfterAuth) {
+          const dest = pendingNavAfterAuth;
+          pendingNavAfterAuth = null;
+          navigateTo(dest);
+          return;
         }
+        // If still on sign-in page, go home
+        const h = location.hash.replace('#', '') || '/';
+        if (h === '/signin') navigateTo('home');
+      } else {
+        // Bounce off protected pages when signed out
+        const h = location.hash.replace('#', '') || '/';
+        if (h === '/create' || h === '/mylists') navigateTo('home');
       }
     });
     return true;
@@ -157,23 +158,35 @@ async function handleAuthClick() {
       toast('Signed out', 'info');
     } catch { toast('Sign out failed', 'error'); }
   } else {
-    try {
-      await signInWithPopup(S.auth, new GoogleAuthProvider());
-      toast('Signed in! 🎉', 'success');
-    } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') {
-        console.error(e);
-        toast('Sign in failed — check your Firebase has Authentication enabled', 'error');
-      }
-    }
+    navigateTo('signin');
   }
 }
 window.handleAuthClick = handleAuthClick;
 
+async function startGoogleSignIn() {
+  if (!S.auth) { toast('Set up Firebase first', 'info'); return; }
+  const btn = document.getElementById('google-signin-btn');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Signing in…'; }
+  try {
+    await signInWithPopup(S.auth, new GoogleAuthProvider());
+    // onAuthStateChanged handles navigation
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    if (e.code === 'auth/unauthorized-domain') {
+      toast('Add "' + location.hostname + '" to Firebase → Authentication → Settings → Authorized domains', 'error');
+    } else if (e.code !== 'auth/popup-closed-by-user') {
+      console.error(e);
+      toast('Sign in failed — check Firebase Authentication is enabled', 'error');
+    }
+  }
+}
+window.startGoogleSignIn = startGoogleSignIn;
+
 // =========================================================
 // ROUTING
 // =========================================================
-const PAGES = ['home', 'setup', 'create', 'manage', 'buyer', 'mylists'];
+const PAGES = ['home', 'setup', 'create', 'manage', 'buyer', 'mylists', 'signin'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -191,9 +204,12 @@ function navigateTo(view, params) {
   } else if (view === 'setup') {
     history.pushState(null, '', location.pathname + '#/setup');
     showPage('setup');
+  } else if (view === 'signin') {
+    history.pushState(null, '', location.pathname + '#/signin');
+    showPage('signin');
   } else if (view === 'create') {
     needsFirebase(() => {
-      if (authResolved && !S.user) { toast('Sign in to create a list', 'info'); return; }
+      if (authResolved && !S.user) { pendingNavAfterAuth = 'create'; navigateTo('signin'); return; }
       history.pushState(null, '', location.pathname + '#/create');
       showPage('create');
     });
@@ -211,7 +227,7 @@ function navigateTo(view, params) {
     });
   } else if (view === 'mylists') {
     needsFirebase(() => {
-      if (authResolved && !S.user) { toast('Sign in to see your lists', 'info'); return; }
+      if (authResolved && !S.user) { pendingNavAfterAuth = 'mylists'; navigateTo('signin'); return; }
       history.pushState(null, '', location.pathname + '#/mylists');
       showPage('mylists');
       renderMyLists();
@@ -236,6 +252,8 @@ function handleHash() {
     needsFirebase(() => { showPage('buyer'); loadBuyerPage(id); });
   } else if (hash === '/mylists') {
     needsFirebase(() => { showPage('mylists'); renderMyLists(); });
+  } else if (hash === '/signin') {
+    showPage('signin');
   } else {
     showPage('home');
   }
@@ -266,8 +284,7 @@ window.goToList = goToList;
 function goCreate() {
   if (authResolved && !S.user) {
     pendingNavAfterAuth = 'create';
-    toast('Sign in first to create a list', 'info');
-    handleAuthClick();
+    navigateTo('signin');
     return;
   }
   navigateTo('create');
