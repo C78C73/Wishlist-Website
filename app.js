@@ -60,6 +60,7 @@ function initFirebase() {
     S.db  = getFirestore(app);
     S.auth = getAuth(app);
     onAuthStateChanged(S.auth, user => {
+      console.log('[WL] auth state:', user ? 'signed in — ' + user.email + ' (' + user.uid + ')' : 'signed out');
       S.user = user;
       authResolved = true;
       updateAuthUI();
@@ -165,6 +166,7 @@ window.handleAuthClick = handleAuthClick;
 
 async function startGoogleSignIn() {
   if (!S.auth) { toast('Set up Firebase first', 'info'); return; }
+  console.log('[WL] startGoogleSignIn: attempting...');
   const btn = document.getElementById('google-signin-btn');
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Signing in…'; }
@@ -174,6 +176,7 @@ async function startGoogleSignIn() {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     if (e.code === 'auth/unauthorized-domain') {
+      console.error('[WL] auth/unauthorized-domain — hostname:', location.hostname);
       toast('Add "' + location.hostname + '" to Firebase → Authentication → Settings → Authorized domains', 'error');
     } else if (e.code !== 'auth/popup-closed-by-user') {
       console.error(e);
@@ -332,6 +335,7 @@ async function createList() {
   if (!owner) { toast('Please enter your name', 'error'); return; }
   if (!name)  { toast('Please enter a list name', 'error'); return; }
 
+  console.log('[WL] createList:', { owner, name, occasion: occ, uid: S.user?.uid });
   const btn = document.getElementById('create-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Creating…';
@@ -345,6 +349,7 @@ async function createList() {
       ownerEmail: S.user ? S.user.email : null
     };
     await setDoc(doc(S.db, 'lists', listId), data);
+    console.log('[WL] List created:', listId);
 
     const mine = getMyListsLocal();
     mine.unshift({ id: listId, name, ownerName: owner, occasion: occ, createdAt: Date.now() });
@@ -353,7 +358,7 @@ async function createList() {
     toast('List created! 🎉', 'success');
     navigateTo('manage', { listId });
   } catch (e) {
-    console.error(e);
+    console.error('[WL] createList failed:', e);
     toast('Failed to create list — check your Firebase connection', 'error');
   } finally {
     btn.disabled = false;
@@ -366,6 +371,7 @@ window.createList = createList;
 // MANAGE PAGE
 // =========================================================
 async function loadManagePage(listId) {
+  console.log('[WL] loadManagePage:', listId, '| user:', S.user?.uid || 'none');
   S.listId   = listId;
   S.isOwner  = true;
   const container = document.getElementById('manage-items');
@@ -373,9 +379,10 @@ async function loadManagePage(listId) {
 
   try {
     const snap = await getDoc(doc(S.db, 'lists', listId));
-    if (!snap.exists()) { container.innerHTML = notFoundHtml(); return; }
+    if (!snap.exists()) { console.warn('[WL] loadManagePage: list not found:', listId); container.innerHTML = notFoundHtml(); return; }
 
     const data = snap.data();
+    console.log('[WL] loadManagePage: loaded', data.name, '| items:', data.items?.length, '| ownerUid:', data.ownerUid);
     S.listData = data;
 
     // If list has an owner and it doesn't match current user, deny management
@@ -396,24 +403,39 @@ async function loadManagePage(listId) {
     document.title = data.name + ' — Wishlist';
     renderManageItems(data.items || []);
   } catch (e) {
-    console.error(e);
+    console.error('[WL] loadManagePage failed:', e);
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Error loading list</h3><p>Check your connection.</p></div>';
   }
 }
 
 function renderManageItems(items) {
   const c = document.getElementById('manage-items');
+  const available    = items.filter(it => !it.bought);
+  const claimedCount = items.length - available.length;
+
   if (!items.length) {
     c.innerHTML = '<div class="empty-state"><div class="empty-icon">🎁</div><h3>No items yet</h3><p>Add your first item using the button above.</p></div>';
     return;
   }
-  c.innerHTML =
-    '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.25rem;">' +
-    '<span class="count-badge">' + items.length + ' item' + (items.length !== 1 ? 's' : '') + '</span>' +
-    '&nbsp; Bought items are hidden from this view ✨</p>' +
-    '<div class="items-grid" id="manage-grid"></div>';
-  const grid = document.getElementById('manage-grid');
-  items.forEach((item, i) => grid.appendChild(buildItemCard(item, i, true)));
+  if (!available.length) {
+    c.innerHTML = '<div class="empty-state"><div class="empty-icon">🎉</div><h3>Everything\'s been claimed!</h3><p>All ' + claimedCount + ' items have been claimed. Surprises incoming!</p></div>';
+    return;
+  }
+
+  const meta = document.createElement('p');
+  meta.style.cssText = 'font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  meta.innerHTML =
+    '<span class="count-badge">' + available.length + ' item' + (available.length !== 1 ? 's' : '') + ' available</span>' +
+    (claimedCount > 0 ? '<span class="claimed-badge">🎁 ' + claimedCount + ' claimed</span>' : '') +
+    '<span style="color:var(--text-muted);">— claimed items are hidden to keep surprises safe ✨</span>';
+
+  const grid = document.createElement('div');
+  grid.className = 'items-grid';
+  available.forEach((item, i) => grid.appendChild(buildItemCard(item, i, true)));
+
+  c.innerHTML = '';
+  c.appendChild(meta);
+  c.appendChild(grid);
 }
 
 // =========================================================
@@ -508,15 +530,26 @@ async function fetchFromUrl() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
   try {
+    console.group('[WL] fetchFromUrl');
+    console.log('Fetching URL:', url);
     const res  = await fetch('https://api.microlink.io/?url=' + encodeURIComponent(url));
     const json = await res.json();
+    console.log('Microlink full response:', json);
+
     if (json.status === 'success') {
       const d     = json.data;
       const title = d.title || '';
       const desc  = d.description || '';
 
-      // Image: try image field, then logo as last resort
-      const image = (d.image && d.image.url) || (d.logo && d.logo.url) || '';
+      // Validate image candidates — Amazon tracking pixels etc. are not valid image URLs
+      const imgCandidates = [
+        d.image      && d.image.url,
+        d.thumbnail  && d.thumbnail.url,
+        d.logo       && d.logo.url,
+      ].filter(Boolean);
+      console.log('Image candidates:', imgCandidates);
+      const image = imgCandidates.find(isImageUrl) || '';
+      console.log('Selected image:', image || '(none valid)');
 
       // Price: Microlink returns price as string or {amount, currency} object
       let price = '';
@@ -525,6 +558,8 @@ async function fetchFromUrl() {
           ? d.price
           : (d.price.amount ? (d.price.currency || '') + d.price.amount : '');
       }
+      console.log('title:', title, '| price:', price);
+      console.groupEnd();
 
       if (title) document.getElementById('item-name').value  = title;
       if (image) document.getElementById('item-image').value = image;
@@ -540,9 +575,12 @@ async function fetchFromUrl() {
 
       toast('Details fetched ✓', 'success');
     } else {
+      console.warn('[WL] Microlink non-success:', json.message);
+      console.groupEnd();
       toast('Could not auto-fill — fill in manually', 'info');
     }
-  } catch {
+  } catch (err) {
+    console.error('[WL] fetchFromUrl error:', err);
     toast('Fetch failed — please fill in manually', 'info');
   } finally {
     btn.disabled = false;
@@ -555,6 +593,7 @@ async function submitAddItem() {
   if (!S.listId) return;
   const name = document.getElementById('item-name').value.trim();
   if (!name) { toast('Item name is required', 'error'); return; }
+  console.log('[WL] submitAddItem:', S.editingItemId ? 'editing ' + S.editingItemId : 'new item', '| name:', name);
 
   const btn = document.getElementById('add-item-submit');
   btn.disabled = true;
@@ -582,6 +621,7 @@ async function submitAddItem() {
       }];
     }
     await updateDoc(doc(S.db, 'lists', S.listId), { items: newItems });
+    console.log('[WL] submitAddItem: saved', S.editingItemId ? 'edit' : 'new item', '| total items:', newItems.length);
     S.listData.items = newItems;
     renderManageItems(newItems);
     closeModal('modal-add-item');
@@ -616,6 +656,7 @@ document.getElementById('confirm-delete-btn').addEventListener('click', async ()
   try {
     const newItems = S.listData.items.filter(it => it.id !== S.pendingDeleteItemId);
     await updateDoc(doc(S.db, 'lists', S.listId), { items: newItems });
+    console.log('[WL] doMarkBought: success');
     S.listData.items = newItems;
     renderManageItems(newItems);
     closeModal('modal-delete-item');
@@ -659,6 +700,7 @@ window.copyShareLink = copyShareLink;
 // BUYER PAGE
 // =========================================================
 async function loadBuyerPage(listId) {
+  console.log('[WL] loadBuyerPage:', listId, '| user:', S.user?.uid || 'anonymous');
   S.listId  = listId;
   S.isOwner = false;
   const container = document.getElementById('buyer-items');
@@ -667,9 +709,10 @@ async function loadBuyerPage(listId) {
 
   try {
     const snap = await getDoc(doc(S.db, 'lists', listId));
-    if (!snap.exists()) { container.innerHTML = notFoundHtml(); return; }
+    if (!snap.exists()) { console.warn('[WL] loadBuyerPage: list not found:', listId); container.innerHTML = notFoundHtml(); return; }
 
     const data = snap.data();
+    console.log('[WL] loadBuyerPage: loaded', data.name, '| items:', data.items?.length);
     S.listData = data;
     document.getElementById('buyer-title').textContent  = data.name;
     document.getElementById('buyer-occasion').textContent = occasionLabel(data.occasion);
@@ -679,7 +722,7 @@ async function loadBuyerPage(listId) {
     renderBuyerItems(data.items || []);
     updateProgress(data.items || []);
   } catch (e) {
-    console.error(e);
+    console.error('[WL] loadBuyerPage failed:', e);
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Error loading wishlist</h3><p>Check your connection.</p></div>';
   }
 }
@@ -742,6 +785,7 @@ window.askMarkBought = askMarkBought;
 
 async function doMarkBought() {
   if (!S.pendingBuyItemId || !S.listId) return;
+  console.log('[WL] doMarkBought: item', S.pendingBuyItemId, '| list', S.listId, '| user', S.user?.uid || 'anonymous');
   const btn = document.getElementById('confirm-bought-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
@@ -750,6 +794,7 @@ async function doMarkBought() {
       it.id === S.pendingBuyItemId ? { ...it, bought: true, boughtAt: Date.now(), boughtByUid: S.user ? S.user.uid : null } : it
     );
     await updateDoc(doc(S.db, 'lists', S.listId), { items: newItems });
+    console.log('[WL] doMarkBought: success');
     S.listData.items = newItems;
     renderBuyerItems(newItems);
     updateProgress(newItems);
@@ -816,7 +861,7 @@ async function renderMyLists() {
       '<span class="list-occasion-tag">' + occasionLabel(list.occasion) + '</span>' +
       '<h3>' + esc(list.name) + '</h3>' +
       '<p style="font-size:0.84rem;color:var(--text-muted);">by ' + esc(list.ownerName) + '</p>' +
-      '<div class="list-meta">Created ' + timeAgo(list.createdAt) + '</div>' +
+      '<div class="list-meta">Created ' + formatDate(list.createdAt) + '</div>' +
       '<div class="list-card-actions">' +
         '<button class="btn btn-primary btn-sm" onclick="navigateTo(\'manage\',{listId:\'' + list.id + '\'})">Manage</button>' +
         '<button class="btn btn-secondary btn-sm" onclick="copyListUrl(\'' + list.id + '\')">📋 Share</button>' +
@@ -843,6 +888,30 @@ function uid() {
 }
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function isImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const p = u.pathname.toLowerCase();
+    if (/\.(jpg|jpeg|png|gif|webp|svg|avif|bmp)(\?|$|#)/.test(p)) return true;
+    const imgHosts = [
+      'm.media-amazon.com', 'images-na.ssl-images-amazon.com',
+      'images-eu.ssl-images-amazon.com', 'images-fe.ssl-images-amazon.com',
+      'i.ebayimg.com', 'images.unsplash.com', 'cdn.shopify.com',
+      'i.imgur.com', 'lh3.googleusercontent.com', 'storage.googleapis.com',
+    ];
+    if (imgHosts.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) return true;
+    return false;
+  } catch { return false; }
+}
+function formatDate(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
 }
 function occasionLabel(o) {
   return { birthday:'🎂 Birthday', christmas:'🎄 Christmas', wedding:'💍 Wedding',

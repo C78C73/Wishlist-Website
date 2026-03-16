@@ -323,6 +323,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
 
 /* ===== BADGE ===== */
 .count-badge { background: var(--primary-light); color: var(--primary); font-size: 0.73rem; font-weight: 600; padding: 2px 9px; border-radius: 100px; }
+.claimed-badge { background: #fef9c3; color: #854d0e; font-size: 0.73rem; font-weight: 600; padding: 2px 9px; border-radius: 100px; }
+[data-theme="dark"] .claimed-badge { background: #422006; color: #fbbf24; }
 
 /* ===== FAB (mobile) ===== */
 .fab {
