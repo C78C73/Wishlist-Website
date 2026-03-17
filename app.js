@@ -142,7 +142,16 @@ function updateAuthUI() {
     const avatar = photo
       ? `<img src="${photo}" class="auth-avatar" referrerpolicy="no-referrer" alt="${esc(name)}" />`
       : `<div class="auth-avatar-fallback">${name[0].toUpperCase()}</div>`;
-    area.innerHTML = `<button class="auth-user-btn" onclick="handleAuthClick()">${avatar}<span>${esc(name)}</span></button>`;
+    area.innerHTML = `
+      <div class="auth-dropdown-wrap">
+        <button class="auth-user-btn" onclick="toggleAuthDropdown()">
+          ${avatar}<span>${esc(name)}</span><span class="auth-caret">▾</span>
+        </button>
+        <div class="auth-dropdown" id="auth-dropdown">
+          <button class="auth-dropdown-item" onclick="switchAccount()">↕ Switch account</button>
+          <button class="auth-dropdown-item danger" onclick="handleSignOut()">Sign out</button>
+        </div>
+      </div>`;
     if (myListsBtn) myListsBtn.style.display = 'flex';
   } else {
     area.innerHTML = `<button class="btn btn-primary btn-sm" onclick="handleAuthClick()">Sign In</button>`;
@@ -150,17 +159,45 @@ function updateAuthUI() {
   }
 }
 
+function toggleAuthDropdown() {
+  const dd = document.getElementById('auth-dropdown');
+  if (dd) dd.classList.toggle('open');
+}
+window.toggleAuthDropdown = toggleAuthDropdown;
+
+// Close dropdown when clicking outside it
+document.addEventListener('click', e => {
+  const wrap = document.querySelector('.auth-dropdown-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dd = document.getElementById('auth-dropdown');
+    if (dd) dd.classList.remove('open');
+  }
+});
+
+async function handleSignOut() {
+  const dd = document.getElementById('auth-dropdown');
+  if (dd) dd.classList.remove('open');
+  try {
+    await signOut(S.auth);
+    navigateTo('home');
+    toast('Signed out', 'info');
+  } catch { toast('Sign out failed', 'error'); }
+}
+window.handleSignOut = handleSignOut;
+
+async function switchAccount() {
+  const dd = document.getElementById('auth-dropdown');
+  if (dd) dd.classList.remove('open');
+  try {
+    await signOut(S.auth);
+    navigateTo('signin');
+  } catch { toast('Error switching accounts', 'error'); }
+}
+window.switchAccount = switchAccount;
+
 async function handleAuthClick() {
   if (!S.auth) { toast('Set up Firebase first', 'info'); return; }
-  if (S.user) {
-    try {
-      await signOut(S.auth);
-      navigateTo('home');
-      toast('Signed out', 'info');
-    } catch { toast('Sign out failed', 'error'); }
-  } else {
-    navigateTo('signin');
-  }
+  navigateTo('signin');
 }
 window.handleAuthClick = handleAuthClick;
 
@@ -523,6 +560,23 @@ function clearItemForm() {
   document.getElementById('fetch-preview').classList.add('hidden');
 }
 
+async function fetchMicrolink(url, prerender) {
+  const qs = '?url=' + encodeURIComponent(url) + (prerender ? '&prerender=true' : '');
+  const res = await fetch('https://api.microlink.io/' + qs);
+  return await res.json();
+}
+
+function extractBestImage(d) {
+  if (!d) return '';
+  const candidates = [
+    d.image     && d.image.url,
+    d.thumbnail && d.thumbnail.url,
+    d.logo      && d.logo.url,
+  ].filter(Boolean);
+  console.log('Image candidates:', candidates);
+  return candidates.find(isImageUrl) || '';
+}
+
 async function fetchFromUrl() {
   const url = document.getElementById('item-url').value.trim();
   if (!url) { toast('Paste a URL first', 'error'); return; }
@@ -532,42 +586,44 @@ async function fetchFromUrl() {
   try {
     console.group('[WL] fetchFromUrl');
     console.log('Fetching URL:', url);
-    const res  = await fetch('https://api.microlink.io/?url=' + encodeURIComponent(url));
-    const json = await res.json();
-    console.log('Microlink full response:', json);
+
+    // Pass 1: standard request
+    let json = await fetchMicrolink(url, false);
+    console.log('Microlink response (standard):', json);
+    let image = extractBestImage(json.data);
+
+    // Pass 2: prerender if no valid image found (gets past JS-rendered pages like Amazon)
+    if (json.status === 'success' && !image) {
+      console.log('[WL] No valid image; retrying with prerender=true...');
+      const json2 = await fetchMicrolink(url, true);
+      console.log('Microlink response (prerender):', json2);
+      if (json2.status === 'success') { json = json2; image = extractBestImage(json.data); }
+    }
 
     if (json.status === 'success') {
       const d     = json.data;
       const title = d.title || '';
       const desc  = d.description || '';
 
-      // Validate image candidates — Amazon tracking pixels etc. are not valid image URLs
-      const imgCandidates = [
-        d.image      && d.image.url,
-        d.thumbnail  && d.thumbnail.url,
-        d.logo       && d.logo.url,
-      ].filter(Boolean);
-      console.log('Image candidates:', imgCandidates);
-      const image = imgCandidates.find(isImageUrl) || '';
-      console.log('Selected image:', image || '(none valid)');
-
-      // Price: Microlink returns price as string or {amount, currency} object
+      // Price: Microlink sometimes returns HTML markup, strip all tags
       let price = '';
       if (d.price) {
-        price = typeof d.price === 'string'
+        const raw = typeof d.price === 'string'
           ? d.price
-          : (d.price.amount ? (d.price.currency || '') + d.price.amount : '');
+          : (d.price.amount ? String(d.price.currency || '') + d.price.amount : '');
+        price = stripHtml(raw);
       }
-      console.log('title:', title, '| price:', price);
+
+      console.log('Selected image:', image || '(none valid)', '| price:', price);
       console.groupEnd();
 
       if (title) document.getElementById('item-name').value  = title;
       if (image) document.getElementById('item-image').value = image;
       if (price) document.getElementById('item-price').value = price;
 
-      const prev = document.getElementById('fetch-preview');
-      prev.classList.remove('hidden');
+      const prev  = document.getElementById('fetch-preview');
       const fpImg = document.getElementById('fp-img');
+      prev.classList.remove('hidden');
       if (image) { fpImg.src = image; fpImg.style.display = 'block'; fpImg.referrerPolicy = 'no-referrer'; }
       else fpImg.style.display = 'none';
       document.getElementById('fp-title').textContent = title || 'No title found';
@@ -888,6 +944,9 @@ function uid() {
 }
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function stripHtml(s) {
+  return s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
 }
 function isImageUrl(url) {
   if (!url || typeof url !== 'string') return false;
