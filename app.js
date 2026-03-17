@@ -566,6 +566,11 @@ async function fetchMicrolink(url, prerender) {
   return await res.json();
 }
 
+function isAmazonUrl(url) {
+  try { return /amazon\.(com|co\.|ca|de|fr|it|es|co\.jp)/.test(new URL(url).hostname); }
+  catch { return false; }
+}
+
 function extractBestImage(d) {
   if (!d) return '';
   const candidates = [
@@ -574,6 +579,9 @@ function extractBestImage(d) {
     d.logo      && d.logo.url,
   ].filter(Boolean);
   console.log('Image candidates:', candidates);
+  // Prefer Amazon product images (/images/I/) over marketing/logo paths (/images/G/, /images/P/)
+  const productImg = candidates.find(u => isImageUrl(u) && /\/images\/I\//.test(u));
+  if (productImg) return productImg;
   return candidates.find(isImageUrl) || '';
 }
 
@@ -587,13 +595,14 @@ async function fetchFromUrl() {
     console.group('[WL] fetchFromUrl');
     console.log('Fetching URL:', url);
 
-    // Pass 1: standard request
-    let json = await fetchMicrolink(url, false);
-    console.log('Microlink response (standard):', json);
+    // Amazon always blocks standard scraping — go straight to prerender
+    const amazon = isAmazonUrl(url);
+    let json = await fetchMicrolink(url, amazon);
+    console.log(`Microlink response (${amazon ? 'prerender' : 'standard'}):`, json);
     let image = extractBestImage(json.data);
 
-    // Pass 2: prerender if no valid image found (gets past JS-rendered pages like Amazon)
-    if (json.status === 'success' && !image) {
+    // For non-Amazon: fall back to prerender if no valid product image found
+    if (!amazon && json.status === 'success' && !image) {
       console.log('[WL] No valid image; retrying with prerender=true...');
       const json2 = await fetchMicrolink(url, true);
       console.log('Microlink response (prerender):', json2);
@@ -605,7 +614,7 @@ async function fetchFromUrl() {
       const title = d.title || '';
       const desc  = d.description || '';
 
-      // Price: Microlink sometimes returns HTML markup, strip all tags
+      // Price: Microlink sometimes returns HTML markup — strip all tags
       let price = '';
       if (d.price) {
         const raw = typeof d.price === 'string'
